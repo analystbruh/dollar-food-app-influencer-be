@@ -10,7 +10,7 @@ password = os.environ['DOLLAR-FOOD-DB-PASSWORD']
 host = os.environ['DOLLAR-FOOD-DB-HOST']
 
 @app.route('/button-plays', methods=['POST','OPTIONS'])
-def reviews():
+def button_plays():
     if request.method == 'OPTIONS':
         res = make_response()
         res.headers.add('Access-Control-Allow-Origin','*')
