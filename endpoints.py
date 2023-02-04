@@ -1,23 +1,17 @@
 from app import app
 from flask import jsonify, request, make_response
-import psycopg2
+import psycopg2 as pg
+import os
+from datetime import datetime as dt
 
-@app.route('/api/v1/reviews', methods=['GET','POST','OPTIONS'])
+dbname = os.environ['DOLLAR-FOOD-DB-NAME']
+user = os.environ['DOLLAR-FOOD-DB-USERNAME']
+password = os.environ['DOLLAR-FOOD-DB-PASSWORD']
+host = os.environ['DOLLAR-FOOD-DB-HOST']
+
+@app.route('/button-plays', methods=['POST','OPTIONS'])
 def reviews():
-    if request.method == 'GET':
-        data = request.args.to_dict()
-        conn = psycopg2.connect('postgres://tmlvaqqwchhqhw:f28c92fafa959a28b6b8a94b6776538d581caab8ec95d679471b72d2b5163150@ec2-34-199-200-115.compute-1.amazonaws.com:5432/d1i53o5obnf90f')
-        cursor = conn.cursor()
-        cursor.execute(f'select * from dollar_reviews where restaurant = %s',[data.get('restaurant','NA')])
-        result = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        result_dict = [dict(zip(['id','restaurant','review','username', 'stars'], r)) for r in result]
-        print(result_dict)
-        res = jsonify(result_dict)
-        res.headers.add('Access-Control-Allow-Origin','*')
-        return res
-    elif request.method == 'OPTIONS':
+    if request.method == 'OPTIONS':
         res = make_response()
         res.headers.add('Access-Control-Allow-Origin','*')
         res.headers.add('Access-Control-Allow-Headers','*')
@@ -25,13 +19,36 @@ def reviews():
         return res
     elif request.method == 'POST':
         data = request.json
-        print(data)
-        conn = psycopg2.connect('postgres://tmlvaqqwchhqhw:f28c92fafa959a28b6b8a94b6776538d581caab8ec95d679471b72d2b5163150@ec2-34-199-200-115.compute-1.amazonaws.com:5432/d1i53o5obnf90f')
-        cursor = conn.cursor()
-        cursor.execute('insert into dollar_reviews values (default,%s,%s,%s,%s)',[data['restaurant'], data['review'], data['username'], data['rating']])
-        conn.commit()
-        cursor.close()
-        conn.close()
-        res = jsonify('done')
-        res.headers.add('Access-Control-Allow-Origin','*')
+        if 'trackplay' not in data:
+            query = """
+                select
+                    case
+                        when extract(epoch from (now() - last_played)) < 86400
+                        then 1
+                        else 0
+                    end
+                from dfa_users
+                where gtoken = %s
+            """
+            conn = pg.connect(dbname=dbname, user=user, password=password,  host=host)
+            cursor = conn.cursor()
+            cursor.execute(query,[data['user']])
+            result = cursor.fetchall()
+            if not result:
+                cursor.execute('insert into dfa_users values (%s, null)', [data['user']])
+                conn.commit()
+                res = 0
+            else:
+                res = result[0][0]
+            conn.close()
+            res = jsonify(res)
+            res.headers.add('Access-Control-Allow-Origin','*')
+        else:
+            conn = pg.connect(dbname=dbname, user=user, password=password,  host=host)
+            cursor = conn.cursor()
+            cursor.execute('update dfa_users set last_played=now() where gtoken = %s', [data['user']])
+            conn.commit()
+            conn.close()
+            res = jsonify('success')
+            res.headers.add('Access-Control-Allow-Origin','*')
         return res
