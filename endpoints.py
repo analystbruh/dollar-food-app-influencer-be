@@ -52,3 +52,14 @@ def button_plays():
             res = jsonify('success')
             res.headers.add('Access-Control-Allow-Origin','*')
         return res
+
+@app.route('/player-count', methods=['GET'])
+def player_count():
+    query = 'select count(*) from dfa_users'
+    conn = pg.connect(dbname=dbname, user=user, password=password, host=host)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    data = cursor.fetchall()
+    conn.close()
+    result = data[0]
+    return jsonify(result)
